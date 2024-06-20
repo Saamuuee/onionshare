@@ -6,3 +6,9 @@
     ![alt text](request_map_original_coverage.png)
     New coverage report
     ![alt text](request_map_new_coverage.png)
+
+3. FUNCTION: request_settings
+    Original coverage report
+    ![alt text](desktop/screenshots/request_map_original_coverage.png)
+    New coverage report
+    ![alt text](desktop/screenshots/request_settings_new_coverage.png)
