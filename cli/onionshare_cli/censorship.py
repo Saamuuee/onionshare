@@ -19,30 +19,61 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import requests
 
+class Common:
+    def log(self, *args):
+        print("Log:", *args)
+
+class Meek:
+    meek_proxies = {
+        "http": "http://mock_meek_proxy",
+        "https": "https://mock_meek_proxy"
+    }
+
+    def __init__(self):
+        self.active = False
+
+    def activate(self):
+        self.active = True
+
+    def deactivate(self):
+        self.active = False
+
+    def get_proxies(self):
+        if self.active:
+            return self.meek_proxies
+        else:
+            return {}
+
+class Onion:
+    is_authenticated = True
+    def get_tor_socks_port(self):
+        return ("localhost", 9050)
 
 class CensorshipCircumventionError(Exception):
     """
     There was a problem connecting to the Tor CensorshipCircumvention API.
     """
 
-
-class CensorshipCircumvention(object):
-    """
-    Connect to the Tor Moat APIs to retrieve censorship
-    circumvention recommendations or the latest bridges.
-
-    We support reaching this API over Tor, or Meek
-    (domain fronting) if Tor is not connected.
-    """
+class CensorshipCircumvention:
+    global_branch_coverage = {
+        "request_map_1": False,  # if not self.api_proxies
+        "request_map_2": False,  # if country
+        "request_map_3": False,  # if r.status_code != 200
+        "request_map_4": False,  # if "errors" in result
+    }
 
     def __init__(self, common, meek=None, onion=None):
-        """
-        Set up the CensorshipCircumvention object to hold
-        common and meek objects.
-        """
         self.common = common
         self.common.log("CensorshipCircumvention", "__init__")
         self.api_proxies = {}
+
+        self.branch_coverage = {  # Initialize branch_coverage here
+            "request_map_1": False,
+            "request_map_2": False,
+            "request_map_3": False,
+            "request_map_4": False,
+        }
+
         if meek:
             self.meek = meek
             self.common.log(
@@ -51,6 +82,7 @@ class CensorshipCircumvention(object):
                 "Using Meek with CensorshipCircumvention API",
             )
             self.api_proxies = self.meek.meek_proxies
+            
         if onion:
             self.onion = onion
             if not self.onion.is_authenticated:
@@ -80,10 +112,15 @@ class CensorshipCircumvention(object):
         """
         self.common.log("CensorshipCircumvention", "request_map", f"country={country}")
         if not self.api_proxies:
+            self.branch_coverage["request_map_1"] = True
+            CensorshipCircumvention.global_branch_coverage["request_map_1"] = True
+            self.print_coverage()
             return False
         endpoint = "https://bridges.torproject.org/moat/circumvention/map"
         data = {}
         if country:
+            self.branch_coverage["request_map_2"] = True
+            CensorshipCircumvention.global_branch_coverage["request_map_2"] = True
             data = {"country": country}
 
         try:
@@ -94,25 +131,33 @@ class CensorshipCircumvention(object):
                 proxies=self.api_proxies,
             )
             if r.status_code != 200:
+                self.branch_coverage["request_map_3"] = True
+                CensorshipCircumvention.global_branch_coverage["request_map_3"] = True
                 self.common.log(
                     "CensorshipCircumvention",
                     "request_map",
                     f"status_code={r.status_code}",
                 )
+                self.print_coverage()
                 return False
 
             result = r.json()
 
             if "errors" in result:
+                self.branch_coverage["request_map_4"] = True
+                CensorshipCircumvention.global_branch_coverage["request_map_4"] = True
                 self.common.log(
                     "CensorshipCircumvention",
                     "request_map",
                     f"errors={result['errors']}",
                 )
+                self.print_coverage()
                 return False
 
+            self.print_coverage()
             return result
         except requests.exceptions.RequestException as e:
+            self.print_coverage()
             raise CensorshipCircumventionError(e)
 
     def request_settings(self, country=False, transports=False):
@@ -309,3 +354,21 @@ class CensorshipCircumvention(object):
             return result
         except requests.exceptions.RequestException as e:
             raise CensorshipCircumventionError(e)
+
+    def print_coverage(self):
+        total_branches = len(self.branch_coverage)
+        hit_branches = sum(self.branch_coverage.values())
+        coverage_percentage = (hit_branches / total_branches) * 100
+        for branch, hit in self.branch_coverage.items():
+            print(f"{branch} was {'hit' if hit else 'not hit'}")
+        print(f"Coverage: {hit_branches}/{total_branches} branches hit ({coverage_percentage:.2f}%)")
+
+    @staticmethod
+    def print_global_coverage():
+        total_branches = len(CensorshipCircumvention.global_branch_coverage)
+        hit_branches = sum(CensorshipCircumvention.global_branch_coverage.values())
+        coverage_percentage = (hit_branches / total_branches) * 100
+        for branch, hit in CensorshipCircumvention.global_branch_coverage.items():
+            print(f"{branch} was {'hit' if hit else 'not hit'}")
+        print(f"Global Coverage: {hit_branches}/{total_branches} branches hit ({coverage_percentage:.2f}%)")
+
