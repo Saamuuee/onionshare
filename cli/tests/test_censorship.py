@@ -128,6 +128,36 @@ class TestCensorshipCircumvention(unittest.TestCase):
             circumvention.print_coverage()
             print()
 
+            # Test 6: With transports (request_settings_3)
+            print("Test Case 6: With transports")
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"settings": {"bridge_strings": ["bridge1", "bridge2"]}}
+            circumvention.branch_coverage = {key: False for key in circumvention.branch_coverage}  # Reset coverage
+            result = circumvention.request_settings(country="US", transports=["obfs4"])
+            self.assertEqual(result, {"settings": {"bridge_strings": ["bridge1", "bridge2"]}})
+            circumvention.print_coverage()
+            print()
+
+            # Test 7: No settings in result (request_settings_6)
+            print("Test Case 7: No settings in result")
+            mock_response.status_code = 200
+            mock_response.json.return_value = {}
+            circumvention.branch_coverage = {key: False for key in circumvention.branch_coverage}  # Reset coverage
+            result = circumvention.request_settings(country="US")
+            self.assertFalse(result)
+            circumvention.print_coverage()
+            print()
+
+            # Test 8: settings is None in result (request_settings_6)
+            print("Test Case 8: settings is None in result")
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"settings": None}
+            circumvention.branch_coverage = {key: False for key in circumvention.branch_coverage}  # Reset coverage
+            result = circumvention.request_settings(country="US")
+            self.assertFalse(result)
+            circumvention.print_coverage()
+            print()
+
         # Print global coverage
         print("Final Global Coverage Report for request_settings:")
         CensorshipCircumvention.print_global_coverage()
