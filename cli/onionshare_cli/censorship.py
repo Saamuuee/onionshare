@@ -60,20 +60,30 @@ class CensorshipCircumvention:
         "request_map_2": False,  # if country
         "request_map_3": False,  # if r.status_code != 200
         "request_map_4": False,  # if "errors" in result
+        "request_settings_1": False,  # if not self.api_proxies
+        "request_settings_2": False,  # if country
+        "request_settings_3": False,  # if transports
+        "request_settings_4": False,  # if r.status_code != 200
+        "request_settings_5": False,  # if "errors" in result
+        "request_settings_6": False,  # if not "settings" in result or result["settings"] is None
     }
 
     def __init__(self, common, meek=None, onion=None):
         self.common = common
         self.common.log("CensorshipCircumvention", "__init__")
         self.api_proxies = {}
-
         self.branch_coverage = {  # Initialize branch_coverage here
             "request_map_1": False,
             "request_map_2": False,
             "request_map_3": False,
             "request_map_4": False,
+            "request_settings_1": False,
+            "request_settings_2": False,
+            "request_settings_3": False,
+            "request_settings_4": False,
+            "request_settings_5": False,
+            "request_settings_6": False,
         }
-
         if meek:
             self.meek = meek
             self.common.log(
@@ -82,7 +92,6 @@ class CensorshipCircumvention:
                 "Using Meek with CensorshipCircumvention API",
             )
             self.api_proxies = self.meek.meek_proxies
-            
         if onion:
             self.onion = onion
             if not self.onion.is_authenticated:
@@ -96,7 +105,7 @@ class CensorshipCircumvention:
                 (socks_address, socks_port) = self.onion.get_tor_socks_port()
                 self.api_proxies = {
                     "http": f"socks5h://{socks_address}:{socks_port}",
-                    "https": f"socks5h://{socks_address}:{socks_port}",
+                    "https": f"socks5h://{socks_port}",
                 }
 
     def request_map(self, country=False):
@@ -178,10 +187,15 @@ class CensorshipCircumvention:
             f"country={country}, transports={transports}",
         )
         if not self.api_proxies:
+            self.branch_coverage["request_settings_1"] = True
+            CensorshipCircumvention.global_branch_coverage["request_settings_1"] = True
+            self.print_coverage()
             return False
         endpoint = "https://bridges.torproject.org/moat/circumvention/settings"
         data = {}
         if country:
+            self.branch_coverage["request_settings_2"] = True
+            CensorshipCircumvention.global_branch_coverage["request_settings_2"] = True
             self.common.log(
                 "CensorshipCircumvention",
                 "request_settings",
@@ -189,7 +203,9 @@ class CensorshipCircumvention:
             )
             data = {"country": country}
         if transports:
-            data.append({"transports": transports})
+            self.branch_coverage["request_settings_3"] = True
+            CensorshipCircumvention.global_branch_coverage["request_settings_3"] = True
+            data["transports"] = transports
         try:
             r = requests.post(
                 endpoint,
@@ -198,11 +214,14 @@ class CensorshipCircumvention:
                 proxies=self.api_proxies,
             )
             if r.status_code != 200:
+                self.branch_coverage["request_settings_4"] = True
+                CensorshipCircumvention.global_branch_coverage["request_settings_4"] = True
                 self.common.log(
                     "CensorshipCircumvention",
                     "request_settings",
                     f"status_code={r.status_code}",
                 )
+                self.print_coverage()
                 return False
 
             result = r.json()
@@ -213,26 +232,34 @@ class CensorshipCircumvention:
             )
 
             if "errors" in result:
+                self.branch_coverage["request_settings_5"] = True
+                CensorshipCircumvention.global_branch_coverage["request_settings_5"] = True
                 self.common.log(
                     "CensorshipCircumvention",
                     "request_settings",
                     f"errors={result['errors']}",
                 )
+                self.print_coverage()
                 return False
 
             # There are no settings - perhaps this country doesn't require censorship circumvention?
             # This is not really an error, so we can just check if False and assume direct Tor
             # connection will work.
             if not "settings" in result or result["settings"] is None:
+                self.branch_coverage["request_settings_6"] = True
+                CensorshipCircumvention.global_branch_coverage["request_settings_6"] = True
                 self.common.log(
                     "CensorshipCircumvention",
                     "request_settings",
                     "No settings found for this country",
                 )
+                self.print_coverage()
                 return False
 
+            self.print_coverage()
             return result
         except requests.exceptions.RequestException as e:
+            self.print_coverage()
             raise CensorshipCircumventionError(e)
 
     def request_builtin_bridges(self):
@@ -371,4 +398,3 @@ class CensorshipCircumvention:
         for branch, hit in CensorshipCircumvention.global_branch_coverage.items():
             print(f"{branch} was {'hit' if hit else 'not hit'}")
         print(f"Global Coverage: {hit_branches}/{total_branches} branches hit ({coverage_percentage:.2f}%)")
-
