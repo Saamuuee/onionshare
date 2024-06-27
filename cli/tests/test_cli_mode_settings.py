@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open, MagicMock
 import os
-import json
 
 from onionshare_cli.mode_settings import ModeSettings
 
@@ -25,12 +24,12 @@ class TestModeSettings(unittest.TestCase):
     def test_load_existing_file(self, mock_json_load, mock_open, mock_path_exists):
         mock_path_exists.return_value = True
         mock_json_load.return_value = {"persistent": {"enabled": True}}
-        
+
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common, filename="test.json")
-        
+
         mode_settings.load()
-        
+
         self.assertTrue(mode_settings.get("persistent", "enabled"))
         self.assertEqual(mock_open.call_count, 2)
         mock_open.assert_any_call("test.json", "r")
@@ -39,12 +38,12 @@ class TestModeSettings(unittest.TestCase):
     @patch('builtins.open', new_callable=mock_open)
     def test_load_nonexistent_file(self, mock_open, mock_path_exists):
         mock_path_exists.return_value = False
-        
+
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common, filename="test.json")
-        
+
         mode_settings.load()
-        
+
         self.assertTrue(mode_settings.just_created)
         mock_open.assert_not_called()
 
@@ -52,12 +51,12 @@ class TestModeSettings(unittest.TestCase):
     @patch('builtins.open', new_callable=mock_open, read_data='invalid json')
     def test_load_invalid_json(self, mock_open, mock_path_exists):
         mock_path_exists.return_value = True
-        
+
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common, filename="test.json")
-        
+
         mode_settings.load()
-        
+
         self.assertTrue(mode_settings.just_created)
         self.assertEqual(mock_open.call_count, 2)
         mock_open.assert_any_call("test.json", "r")
@@ -69,41 +68,41 @@ class TestModeSettings(unittest.TestCase):
         mock_platform_system.return_value = 'Darwin'
         mock_getuid.return_value = 1000
         mock_getpwuid.return_value.pw_dir = '/Users/testuser'
-        
+
         common = CommonMock(platform='Darwin')
         mode_settings = ModeSettings(common)
-        
+
         expected_path = os.path.join('/Users/testuser', 'OnionShare')
         actual_path = mode_settings.build_default_receive_data_dir()
-        
+
         self.assertEqual(expected_path, actual_path)
-    
+
     @patch('platform.system')
     @patch('os.path.expanduser')
     def test_build_default_receive_data_dir_windows(self, mock_expanduser, mock_platform_system):
         mock_platform_system.return_value = 'Windows'
         mock_expanduser.return_value = 'C:\\Users\\testuser\\OnionShare'
-        
+
         common = CommonMock(platform='Windows')
         mode_settings = ModeSettings(common)
-        
+
         expected_path = 'C:\\Users\\testuser\\OnionShare'
         actual_path = mode_settings.build_default_receive_data_dir()
-        
+
         self.assertEqual(expected_path, actual_path)
-    
+
     @patch('platform.system')
     @patch('os.path.expanduser')
     def test_build_default_receive_data_dir_other(self, mock_expanduser, mock_platform_system):
         mock_platform_system.return_value = 'Linux'
         mock_expanduser.return_value = '/home/testuser/OnionShare'
-        
+
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common)
-        
+
         expected_path = '/home/testuser/OnionShare'
         actual_path = mode_settings.build_default_receive_data_dir()
-        
+
         self.assertEqual(expected_path, actual_path)
 
     @patch('builtins.open', new_callable=mock_open)
@@ -111,38 +110,38 @@ class TestModeSettings(unittest.TestCase):
     def test_save_settings(self, mock_json_dumps, mock_open):
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common, filename="test.json")
-        
+
         mode_settings.set("persistent", "enabled", True)
         mode_settings.save()
-        
+
         self.assertEqual(mock_open.call_count, 1)
         mock_open.assert_called_once_with("test.json", "w")
         self.assertEqual(mock_json_dumps.call_count, 1)
         mock_json_dumps.assert_called_once_with(mode_settings._settings, indent=2)
-    
+
     @patch('builtins.open', new_callable=mock_open)
     @patch('json.dumps')
     def test_save_settings_disabled(self, mock_json_dumps, mock_open):
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common, filename="test.json")
-        
+
         mode_settings.set("persistent", "enabled", False)
         mode_settings.save()
-        
+
         mock_open.assert_not_called()
         mock_json_dumps.assert_not_called()
 
     def test_fill_in_defaults_add_missing_keys(self):
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common)
-        
+
         mode_settings._settings = {
             "onion": {"private_key": "key"},
             "general": {"title": "Test Title"}
         }
-        
+
         mode_settings.fill_in_defaults()
-        
+
         expected_settings = {
             "onion": {
                 "private_key": "key",
@@ -167,13 +166,13 @@ class TestModeSettings(unittest.TestCase):
             "website": {"disable_csp": False, "custom_csp": None, "filenames": []},
             "chat": {},
         }
-        
+
         self.assertDictEqual(mode_settings._settings, expected_settings)
-    
+
     def test_fill_in_defaults_no_overwrite_existing_keys(self):
         common = CommonMock(platform='Linux')
         mode_settings = ModeSettings(common)
-        
+
         mode_settings._settings = {
             "onion": {
                 "private_key": "key",
@@ -181,9 +180,9 @@ class TestModeSettings(unittest.TestCase):
             },
             "general": {"title": "Test Title", "public": True}
         }
-        
+
         mode_settings.fill_in_defaults()
-        
+
         self.assertEqual(mode_settings._settings["onion"]["private_key"], "key")
         self.assertEqual(mode_settings._settings["onion"]["client_auth_priv_key"], "auth_key")
         self.assertEqual(mode_settings._settings["general"]["title"], "Test Title")
@@ -193,3 +192,4 @@ class TestModeSettings(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+    ModeSettings.save_coverage_data()
