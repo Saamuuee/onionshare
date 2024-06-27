@@ -24,6 +24,21 @@ import platform
 if platform.system() == "Darwin":
     import pwd
 
+global_branch_coverage = {
+    "load_1": False,  # if branch for os.path.exists(self.filename)
+    "load_1_else": False,  # else branch for os.path.exists(self.filename)
+    "load_2": False,  # try branch
+    "load_2_else": False,  # else branch for try
+    "load_3": False,  # except branch
+    "load_4": False,  # if loading settings didn't work
+    "build_default_receive_data_dir_1": False,  # Darwin branch
+    "build_default_receive_data_dir_1_else": False,  # else branch for Darwin
+    "build_default_receive_data_dir_2": False,  # Windows branch
+    "build_default_receive_data_dir_2_else": False,  # else branch for Windows
+    "build_default_receive_data_dir_3": False,  # Other OSes branch
+}
+
+overall_branch_coverage = {key: False for key in global_branch_coverage}
 
 class ModeSettings:
     """
@@ -77,9 +92,7 @@ class ModeSettings:
             if key in self._settings:
                 for inner_key in self.default_settings[key]:
                     if inner_key not in self._settings[key]:
-                        self._settings[key][inner_key] = self.default_settings[key][
-                            inner_key
-                        ]
+                        self._settings[key][inner_key] = self.default_settings[key][inner_key]
             else:
                 self._settings[key] = self.default_settings[key]
 
@@ -88,49 +101,60 @@ class ModeSettings:
 
     def set(self, group, key, val):
         self._settings[group][key] = val
-        self.common.log(
-            "ModeSettings", "set", f"updating {self.id}: {group}.{key} = {val}"
-        )
+        self.common.log("ModeSettings", "set", f"updating {self.id}: {group}.{key} = {val}")
         self.save()
 
     def build_default_receive_data_dir(self):
         """
         Returns the path of the default Downloads directory for receive mode.
         """
-
         if self.common.platform == "Darwin":
-            # We can't use os.path.expanduser() in macOS because in the sandbox it
-            # returns the path to the sandboxed homedir
+            global_branch_coverage["build_default_receive_data_dir_1"] = True
+            overall_branch_coverage["build_default_receive_data_dir_1"] = True
             real_homedir = pwd.getpwuid(os.getuid()).pw_dir
             return os.path.join(real_homedir, "OnionShare")
-        elif self.common.platform == "Windows":
-            # On Windows, os.path.expanduser() needs to use backslash, or else it
-            # retains the forward slash, which breaks opening the folder in explorer.
-            return os.path.expanduser("~\\OnionShare")
         else:
-            # All other OSes
-            return os.path.expanduser("~/OnionShare")
+            global_branch_coverage["build_default_receive_data_dir_1_else"] = True
+            overall_branch_coverage["build_default_receive_data_dir_1_else"] = True
+            if self.common.platform == "Windows":
+                global_branch_coverage["build_default_receive_data_dir_2"] = True
+                overall_branch_coverage["build_default_receive_data_dir_2"] = True
+                return os.path.expanduser("~\\OnionShare")
+            else:
+                global_branch_coverage["build_default_receive_data_dir_2_else"] = True
+                overall_branch_coverage["build_default_receive_data_dir_2_else"] = True
+                global_branch_coverage["build_default_receive_data_dir_3"] = True
+                overall_branch_coverage["build_default_receive_data_dir_3"] = True
+                return os.path.expanduser("~/OnionShare")
 
     def load(self, filename=None):
         # Load persistent settings from disk. If the file doesn't exist, create it
         if filename:
             self.filename = filename
         else:
-            self.filename = os.path.join(
-                self.common.build_persistent_dir(), f"{self.id}.json"
-            )
+            self.filename = os.path.join(self.common.build_persistent_dir(), f"{self.id}.json")
 
         if os.path.exists(self.filename):
+            global_branch_coverage["load_1"] = True
+            overall_branch_coverage["load_1"] = True
             try:
+                global_branch_coverage["load_2"] = True
+                overall_branch_coverage["load_2"] = True
                 with open(self.filename, "r") as f:
                     self._settings = json.load(f)
                     self.fill_in_defaults()
                     self.common.log("ModeSettings", "load", f"loaded {self.filename}")
                     return
             except Exception:
-                pass
+                global_branch_coverage["load_3"] = True
+                overall_branch_coverage["load_3"] = True
+        else:
+            global_branch_coverage["load_1_else"] = True
+            overall_branch_coverage["load_1_else"] = True
 
         # If loading settings didn't work, create the settings file
+        global_branch_coverage["load_4"] = True
+        overall_branch_coverage["load_4"] = True
         self.common.log("ModeSettings", "load", f"creating {self.filename}")
         self.fill_in_defaults()
         self.just_created = True
@@ -148,3 +172,27 @@ class ModeSettings:
         # Delete the file from disk
         if os.path.exists(self.filename):
             os.remove(self.filename)
+
+    @staticmethod
+    def print_global_coverage():
+        total_branches = len(global_branch_coverage)
+        hit_branches = sum(global_branch_coverage.values())
+        coverage_percentage = (hit_branches / total_branches) * 100
+        for branch, hit in global_branch_coverage.items():
+            print(f"{branch} was {'hit' if hit else 'not hit'}")
+        print(f"Overall Test Coverage: {hit_branches}/{total_branches} branches hit ({coverage_percentage:.2f}%)")
+
+    @staticmethod
+    def print_overall_coverage():
+        total_branches = len(overall_branch_coverage)
+        hit_branches = sum(overall_branch_coverage.values())
+        coverage_percentage = (hit_branches / total_branches) * 100
+        print("\nOverall Branch Coverage Report:")
+        print("=" * 25)
+        for branch, hit in overall_branch_coverage.items():
+            status = "HIT" if hit else "NOT HIT"
+            print(f"{branch:<35} : {status:>7}")
+        print("-" * 25)
+        print(f"Total branches                    : {total_branches}")
+        print(f"Hit branches                      : {hit_branches}")
+        print(f"Overall Coverage                  : {coverage_percentage:.2f}%")
